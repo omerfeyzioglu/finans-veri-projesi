@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+    <Properties>
+        <!-- Uygulama adını tanımlayalım -->
+        <Property name="appName">tcp-simulator</Property>
+    </Properties>
+    <Appenders>
+        <Console name="ConsoleAppender" target="SYSTEM_OUT">
+            <!-- PatternLayout yerine JsonLayout -->
+            <JsonLayout complete="false" compact="true" eventEol="true" stacktraceAsString="true">
+                <!-- Uygulama adını her loga ekleyelim -->
+                <KeyValuePair key="application" value="${appName}"/>
+            </JsonLayout>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <!-- Kendi paketimiz için log seviyesi -->
+        <Logger name="com.findata" level="INFO" additivity="false">
+            <AppenderRef ref="ConsoleAppender"/>
+        </Logger>
+        <!-- Kök logger (diğerleri) -->
+        <Root level="WARN">
+            <AppenderRef ref="ConsoleAppender"/>
+        </Root>
+    </Loggers>
+</Configuration>

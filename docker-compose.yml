@@ -1,0 +1,150 @@
+version: '3.8'
+
+services:
+  tcp-simulator:
+    build: { context: ./tcp-platform-app }
+    container_name: tcp_simulator_app
+    ports: [ "8081:8081" ]
+    networks: [ finans-network ]
+    logging: { driver: "json-file" }
+    restart: unless-stopped
+
+  rest-simulator:
+    build: { context: ./spring-platform-2 }
+    container_name: rest_simulator_app
+    ports: [ "8080:8080" ]
+    networks: [ finans-network ]
+    logging: { driver: "json-file" }
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    ports: [ "6379:6379" ]
+    volumes: [ redis-data:/data ]
+    networks: [ finans-network ]
+    restart: unless-stopped
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.3
+    container_name: zookeeper
+    networks: [ finans-network ]
+    environment: { ZOOKEEPER_CLIENT_PORT: 2181, ZOOKEEPER_TICK_TIME: 2000 }
+    volumes: [ zookeeper-data:/var/lib/zookeeper/data, zookeeper-log:/var/lib/zookeeper/log ]
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.3
+    container_name: kafka
+    networks: [ finans-network ]
+    depends_on: [ zookeeper ]
+    ports: [ "19092:19092" ]
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:19092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_CONFLUENT_BALANCER_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: kafka
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true' # Otomatik topic oluşturmayı açalım
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+    volumes: [ kafka-data:/var/lib/kafka/data ]
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    networks: [ finans-network ]
+    environment: { POSTGRES_DB: ratesdb, POSTGRES_USER: rateuser, POSTGRES_PASSWORD: ratepass }
+    ports: [ "5432:5432" ]
+    volumes: [ postgres-data:/var/lib/postgresql/data ]
+    restart: unless-stopped
+
+  main-application:
+    build: { context: ./main-application }
+    container_name: main_app
+    networks: [ finans-network ]
+    depends_on: [ tcp-simulator, rest-simulator, redis, kafka, postgres ] # Postgres eklendi
+    logging: { driver: "json-file" }
+    restart: unless-stopped
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      SPRING_REDIS_HOST: redis
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ratesdb
+      SPRING_DATASOURCE_USERNAME: rateuser
+      SPRING_DATASOURCE_PASSWORD: ratepass
+
+  kafka-consumer-db:
+    build: { context: ./kafka-consumer-db }
+    container_name: consumer_db_app
+    networks: [ finans-network ]
+    depends_on: [ kafka, postgres ]
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/ratesdb
+      - SPRING_DATASOURCE_USERNAME=rateuser
+      - SPRING_DATASOURCE_PASSWORD=ratepass
+      - SPRING_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    logging: { driver: "json-file" }
+    restart: unless-stopped
+
+  # === LOGLAMA SERVİSLERİ (GÜNCELLENDİ) ===
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - plugins.security.disabled=true
+      - DISABLE_INSTALL_DEMO_CONFIG=true
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+      - plugins.security.ssl.http.enabled=false
+      - plugins.security.ssl.transport.enabled=false
+    ulimits: { memlock: { soft: -1, hard: -1 }, nofile: { soft: 65536, hard: 65536 } }
+    volumes: 
+      - opensearch-data:/usr/share/opensearch/data
+    ports: [ "9200:9200", "9600:9600" ]
+    networks: [ finans-network ]
+    restart: unless-stopped
+
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: opensearch-dashboards
+    ports: [ "5601:5601" ]
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+    networks: [ finans-network ]
+    depends_on: [ opensearch ]
+    restart: unless-stopped
+
+  filebeat:
+    build:
+      context: ./filebeat
+    container_name: filebeat
+    user: root
+    command: filebeat -e -strict.perms=false
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    depends_on:
+      - opensearch
+    restart: unless-stopped
+
+networks:
+  finans-network:
+    driver: bridge
+
+volumes:
+  redis-data: { driver: local }
+  postgres-data: { driver: local }
+  zookeeper-data: { driver: local }
+  kafka-data: { driver: local }
+  zookeeper-log: { driver: local }
+  opensearch-data: { driver: local }

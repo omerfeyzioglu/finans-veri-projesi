@@ -1,0 +1,9 @@
+{
+  "port": 8081,
+  "rates": [
+    {"name": "PF1_USDTRY", "initialBid": 34.0, "initialAsk": 35.0, "volatility": 0.01},
+    {"name": "PF1_EURUSD", "initialBid": 1.05, "initialAsk": 1.08, "volatility": 0.005},
+    {"name": "PF1_GBPUSD", "initialBid": 1.25, "initialAsk": 1.27, "volatility": 0.006}
+  ],
+  "broadcastIntervalMs": 1000
+}

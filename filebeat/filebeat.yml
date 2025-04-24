@@ -1,0 +1,35 @@
+filebeat.inputs:
+  - type: container
+    paths:
+      - '/var/lib/docker/containers/*/*.log'
+
+processors:
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - decode_json_fields:
+      fields: ["message"]
+      target: ""
+      overwrite_keys: true
+
+# Elasticsearch output (compatible with OpenSearch)
+output.elasticsearch:
+  hosts: ["http://opensearch:9200"]
+  protocol: "http"
+  ssl.enabled: false
+  index: "finans-%{[agent.version]}-%{+yyyy.MM.dd}"
+
+setup.template.enabled: true
+setup.template.name: "finans"
+setup.template.pattern: "finans-*"
+setup.ilm.enabled: false
+
+# Logging 
+logging.level: debug
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
