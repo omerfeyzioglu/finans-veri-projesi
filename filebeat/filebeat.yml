@@ -8,10 +8,10 @@ processors:
       host: "unix:///var/run/docker.sock"
   - add_host_metadata:
       when.not.contains.tags: forwarded
-  - decode_json_fields:
-      fields: ["message"]
-      target: ""
-      overwrite_keys: true
+#  - decode_json_fields:
+#      fields: ["message"]
+#      target: ""
+#      overwrite_keys: true
 
 # Elasticsearch output (compatible with OpenSearch)
 output.elasticsearch:

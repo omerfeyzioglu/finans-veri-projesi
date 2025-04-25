@@ -9,10 +9,36 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Yapılandırma dosyasını yükleyen ve işleyen yardımcı sınıf.
+ * <p>
+ * Bu sınıf, classpath üzerinden rates-config.json dosyasını okur,
+ * JSON verilerini {@link Config} nesnesine dönüştürür ve
+ * yapılandırılmış {@link Rate} nesnelerini bir Map içinde toplar.
+ * </p>
+ *
+ * @author Finans Veri Projesi Team
+ * @version 1.0
+ * @since 2025-04-25
+ */
 public class ConfigLoader {
 
-    private static final String CONFIG_FILE = "/rates-config.json"; // resources kök dizininde
+    /** Yapılandırma dosyasının classpath üzerindeki konumu */
+    private static final String CONFIG_FILE = "/rates-config.json";
 
+    /**
+     * Yapılandırma dosyasını yükler ve verilen haritayı {@link Rate} nesneleriyle doldurur.
+     * <p>
+     * Bu metod, resources klasöründe bulunan JSON yapılandırma dosyasını okur,
+     * okunan yapılandırmayı bir {@link Config} nesnesine dönüştürür ve
+     * yapılandırma içindeki kur bilgilerini kullanarak {@link Rate} nesneleri oluşturup
+     * verilen haritaya ekler.
+     * </p>
+     *
+     * @param rateMap Yapılandırmadan oluşturulan Rate nesnelerinin ekleneceği harita
+     * @return Yüklenen ve işlenen yapılandırma nesnesi
+     * @throws IOException Dosya bulunamadığında veya okuma hatası oluştuğunda
+     */
     public static Config loadConfig(Map<String, Rate> rateMap) throws IOException {
         Gson gson = new Gson();
         InputStream inputStream = ConfigLoader.class.getResourceAsStream(CONFIG_FILE);

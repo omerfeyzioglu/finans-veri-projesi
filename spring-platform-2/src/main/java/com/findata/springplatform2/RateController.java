@@ -13,20 +13,55 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Kur verilerine erişim sağlayan REST kontrolcüsü.
+ * <p>
+ * Bu sınıf, Platform 2 (PF2) uygulamasının REST API endpoint'lerini tanımlar.
+ * İstemcilerin kur verilerine HTTP istekleri aracılığıyla erişmelerini sağlar.
+ * </p>
+ * <p>
+ * Tüm endpoint'ler "/api/rates" taban yolunu kullanır.
+ * </p>
+ *
+ * @author Finans Veri Projesi Team
+ * @version 1.0
+ * @since 2025-04-25
+ */
 @RestController
-@RequestMapping("/api/rates") // Tüm endpoint'ler için temel yol
+@RequestMapping("/api/rates")
 public class RateController {
 
+    /** Loglama için kullanılan Logger nesnesi */
     private static final Logger log = LoggerFactory.getLogger(RateController.class);
 
-    private final RateService rateService; // Interface tipinde enjekte et (DIP)
+    /** Kur verilerine erişim sağlayan servis */
+    private final RateService rateService;
 
-    @Autowired // Constructor injection (önerilen)
+    /**
+     * Bağımlılıkların enjekte edildiği constructor.
+     *
+     * @param rateService Kur verilerine erişim sağlayan servis
+     */
+    @Autowired
     public RateController(RateService rateService) {
         this.rateService = rateService;
     }
 
-    @GetMapping("/{rateName}") // Örn: /api/rates/PF2_USDTRY
+    /**
+     * İsimle belirtilen kur verisini getirir.
+     * <p>
+     * Bu endpoint, tam kur ismi (örn: "PF2_USDTRY") ile belirtilen
+     * kur verisini JSON formatında döndürür. Kur bulunamazsa
+     * 404 Not Found yanıtı döner.
+     * </p>
+     * <p>
+     * Örnek: GET /api/rates/PF2_USDTRY
+     * </p>
+     *
+     * @param rateName Kur ismi (platform öneki dahil)
+     * @return Kur verisi veya 404 Not Found yanıtı
+     */
+    @GetMapping("/{rateName}")
     public ResponseEntity<Rate> getRateByName(@PathVariable String rateName) {
         log.info("GET request received for rate: {}", rateName);
         // Gelen rateName'i (PF2_USDTRY gibi) doğrudan service'e ver

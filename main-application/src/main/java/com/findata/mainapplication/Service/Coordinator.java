@@ -17,6 +17,29 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Finans Veri Projesi'nin ana koordinasyon bileşeni.
+ * <p>
+ * Bu sınıf, farklı platformlardan (TCP, REST API vb.) gelen finans verilerini
+ * koordine eder, işler ve dağıtır. Temel sorumlulukları:
+ * <ul>
+ *   <li>Platform bağlantılarını yönetme</li>
+ *   <li>Gelen verileri doğrulama ve filtreleme</li>
+ *   <li>Verileri önbelleğe alma</li>
+ *   <li>Kur hesaplamalarını tetikleme</li>
+ *   <li>Verileri Kafka'ya iletme</li>
+ * </ul>
+ * </p>
+ * <p>
+ * Coordinator, Observer tasarım deseni kullanarak platform bağlantılarından gelen
+ * olayları dinler ve işler. Spring Boot çerçevesi üzerinde çalışır ve PlatformConnector
+ * implementasyonlarını otomatik olarak keşfeder ve yönetir.
+ * </p>
+ * 
+ * @author Finans Veri Projesi Team
+ * @version 1.0
+ * @since 2025-04-25
+ */
 @Service
 public class Coordinator implements CoordinatorCallback {
 
@@ -33,19 +56,37 @@ public class Coordinator implements CoordinatorCallback {
 
 
 
-    // Spring, mevcut tüm PlatformConnector bean'lerini bu listeye otomatik enjekte edebilir.
+    /**
+     * Spring tarafından bağımlılıkların enjekte edildiği constructor.
+     * <p>
+     * Tüm PlatformConnector implementasyonları Spring tarafından bir liste olarak
+     * otomatik enjekte edilir. Ayrıca gerekli diğer servisler de alınır.
+     * </p>
+     * 
+     * @param connectors Kullanılacak platform bağlantı nesneleri listesi
+     * @param cacheService Önbellekleme servisi
+     * @param calculationService Kur hesaplama servisi
+     * @param kafkaProducerService Kafka mesaj gönderim servisi
+     */
     @Autowired
     public Coordinator(List<PlatformConnector> connectors,
                        CacheService cacheService,
-                       CalculationService calculationService, // Yeni parametre
-                       KafkaProducerService kafkaProducerService) { // Yeni parametre
+                       CalculationService calculationService,
+                       KafkaProducerService kafkaProducerService) {
         this.connectors = connectors != null ? new ArrayList<>(connectors) : new ArrayList<>();
         this.cacheService = cacheService;
-        this.calculationService = calculationService; // Yeni atama
-        this.kafkaProducerService = kafkaProducerService; // Yeni atama
+        this.calculationService = calculationService;
+        this.kafkaProducerService = kafkaProducerService;
     }
 
 
+    /**
+     * Servis başlatıldığında çalışan metod.
+     * <p>
+     * Tüm platform connector'ları başlatır, kendisini callback olarak tanımlar
+     * ve varsayılan kur aboneliklerini ayarlar.
+     * </p>
+     */
     @PostConstruct
     public void start() {
         log.info("Coordinator starting... Found {} platform connectors.", connectors.size());
@@ -67,6 +108,12 @@ public class Coordinator implements CoordinatorCallback {
         subscribeToRates(symbolsToSubscribe);
     }
 
+    /**
+     * Servis durdurulduğunda çalışan metod.
+     * <p>
+     * Tüm platform bağlantılarını kapatır ve kaynakları serbest bırakır.
+     * </p>
+     */
     @PreDestroy
     public void stop() {
         log.info("Coordinator shutting down...");
@@ -81,6 +128,14 @@ public class Coordinator implements CoordinatorCallback {
         log.info("Coordinator stopped.");
     }
 
+    /**
+     * Belirtilen sembollere abone olunmasını tüm platformlar için ayarlar.
+     * <p>
+     * Her platform connectoru için belirtilen kurları izlemeye başlar.
+     * </p>
+     * 
+     * @param symbolsToSubscribe Abone olunacak kur sembolleri listesi
+     */
     private void subscribeToRates(List<String> symbolsToSubscribe) {
         // Bağlantının kurulmasını beklemek gerekebilir (özellikle TCP için)
         // Şimdilik basitçe deneme yapalım
@@ -104,6 +159,11 @@ public class Coordinator implements CoordinatorCallback {
 
     // --- CoordinatorCallback Implementation ---
 
+    /**
+     * Bir platform bağlantısı kurulduğunda çağrılan callback metodu.
+     * 
+     * @param platformName Bağlantı kurulan platformun adı
+     */
     @Override
     public void onConnect(String platformName) {
         log.info("Callback: Successfully connected to platform: {}", platformName);
@@ -111,12 +171,26 @@ public class Coordinator implements CoordinatorCallback {
         // Belki burada subscribeToRates çağrılabilir? Veya connector'lar kendi içinde yönetir.
     }
 
+    /**
+     * Bir platform bağlantısı kesildiğinde çağrılan callback metodu.
+     * 
+     * @param platformName Bağlantısı kesilen platformun adı
+     */
     @Override
     public void onDisconnect(String platformName) {
         log.warn("Callback: Disconnected from platform: {}", platformName);
         // TODO: Alarm üretme, tekrar bağlanmayı deneme vb.
     }
 
+    /**
+     * Bir platformdan yeni kur verisi geldiğinde çağrılan callback metodu.
+     * <p>
+     * Bu metod, gelen kur verisini doğrular, önbelleğe kaydeder, tolerans
+     * kontrolünden geçirir ve gerekirse hesaplamalara dahil eder.
+     * </p>
+     * 
+     * @param newRate Gelen yeni kur verisi
+     */
     @Override
     public void onRateUpdate(Rate newRate) {
         log.debug("Callback: Received rate update: {}", newRate);
@@ -134,10 +208,10 @@ public class Coordinator implements CoordinatorCallback {
         log.debug("Tolerance check result for {}/{}: {}", newRate.getPlatform(), newRate.getSymbol(), isRateValid);
 
         if (isRateValid) {
-            // 3. Ham veriyi (geçerli ise) Kafka'ya gönder <<<--- BURASI GÜNCELLENDİ
-            kafkaProducerService.sendRawRate(newRate); // Kafka'ya gönderim çağrısı eklendi
+            // 3. Ham veriyi (geçerli ise) Kafka'ya gönder
+            kafkaProducerService.sendRawRate(newRate);
 
-            // 4. Hesaplamaları Tetikle (İçi doldurulacak) <<<--- BU METODUN İÇİ DEĞİŞECEK
+            // 4. Hesaplamaları Tetikle
             triggerCalculations(newRate.getSymbol());
 
         } else {
@@ -146,14 +220,30 @@ public class Coordinator implements CoordinatorCallback {
     }
 
 
+    /**
+     * Bir platformda hata oluştuğunda çağrılan callback metodu.
+     * 
+     * @param platformName Hata oluşan platformun adı
+     * @param error Hata mesajı
+     */
     @Override
-    public void onError(String platformName, String error) { // Aynı kalabilir
+    public void onError(String platformName, String error) {
         log.error("Callback: Error reported from platform {}: {}", platformName, error);
     }
 
     // --- Internal Logic Methods (Stubs/Updates) ---
 
-    // Tolerans kontrolü mantığını implemente eden metot
+    /**
+     * Gelen kur verisinin tolerans kontrolünü yapar.
+     * <p>
+     * İki platformdan gelen aynı kurlar arasında, belirtilen tolerans yüzdesinden
+     * fazla bir fark varsa veriyi geçersiz kabul eder. Bu, anormal verilerin
+     * sisteme girmesini engeller.
+     * </p>
+     * 
+     * @param newRate Kontrol edilecek yeni kur verisi
+     * @return Kur verisi geçerliyse true, değilse false
+     */
     private boolean checkRateTolerance(Rate newRate) {
         String symbol = newRate.getSymbol();
         // Yeni gelen kurun platformu Dışındaki platformun adını bul
@@ -323,4 +413,4 @@ public class Coordinator implements CoordinatorCallback {
         }
         return true; // Tüm gerekli kurlar mevcut
     }
-    }
+}

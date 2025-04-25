@@ -5,6 +5,23 @@ import com.findata.mainapplication.model.Rate;
 import java.util.Optional;
 import java.util.Map;
 
+/**
+ * Döviz kuru verilerinin önbelleklenmesini sağlayan servis arayüzü.
+ * <p>
+ * Bu arayüz, farklı platformlardan gelen ham verilerin (raw rates) ve hesaplanmış 
+ * verilerin (calculated rates) önbellekte saklanması ve alınması için gerekli
+ * metodları tanımlar.
+ * </p>
+ * <p>
+ * Önbellek sistemi, uygulamanın performansını artırmak ve verilere hızlı erişim
+ * sağlamak için kullanılır. Bu arayüzün implementasyonu Redis gibi bir 
+ * in-memory veri depolama sistemi kullanabilir.
+ * </p>
+ * 
+ * @author Finans Veri Projesi Team
+ * @version 1.0
+ * @since 2025-04-25
+ */
 public interface CacheService {
 
     /**

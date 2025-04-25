@@ -13,14 +13,47 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * TCP platformunun ana sınıfı ve uygulamanın giriş noktası.
+ * <p>
+ * Bu sınıf, simüle edilmiş finans verisi sağlayan bir TCP sunucusunu başlatır.
+ * JSON yapılandırma dosyasından ayarları okur, paylaşılan kaynakları (kurlar, zamanlayıcı)
+ * oluşturur ve TcpServer ile tüm bağlantı işlemlerini yönetir.
+ * </p>
+ * <p>
+ * Uygulama, kabul edilebilir şekilde kapatılmasını sağlamak için bir shutdown hook
+ * içerir ve tüm kaynakları düzgün şekilde temizler.
+ * </p>
+ *
+ * @author Finans Veri Projesi Team
+ * @version 1.0
+ * @since 2025-04-25
+ */
 public class Platform1Simulator {
 
+    /** Loglama için kullanılan Logger nesnesi */
     private static final Logger log = LoggerFactory.getLogger(Platform1Simulator.class);
 
-    // Paylaşılan kaynaklar (static kalabilirler veya TcpServer'a taşınabilirler)
+    /** Tüm kurların saklandığı thread-safe harita */
     private static final Map<String, Rate> rates = new ConcurrentHashMap<>();
-    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10); // Thread sayısını ayarla
+    
+    /** Zamanlı görevleri yürütmek için kullanılan thread havuzu */
+    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(10);
 
+    /**
+     * Uygulamanın giriş noktası.
+     * <p>
+     * Bu metod şu işlemleri gerçekleştirir:
+     * <ol>
+     *   <li>Yapılandırma dosyasını yükler</li>
+     *   <li>TcpServer nesnesini oluşturur</li>
+     *   <li>Düzgün kapatma (graceful shutdown) için hook ekler</li>
+     *   <li>TCP sunucusunu başlatır</li>
+     * </ol>
+     * </p>
+     *
+     * @param args Komut satırı argümanları (kullanılmamaktadır)
+     */
     public static void main(String[] args) {
         // 1. Konfigürasyonu Yükle
         Config config = null;
@@ -37,11 +70,10 @@ public class Platform1Simulator {
         TcpServer server = new TcpServer(config, rates, scheduler);
 
         // 3. Graceful Shutdown Hook'u Ayarla
-        // (Shutdown hook static scheduler'a erişebildiği için burada kalabilir)
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("Shutdown hook initiated...");
-            // Sunucuya durma sinyali gönder (isteğe bağlı, stop() metodunu implemente edersek)
-            // server.stop();
+            // Sunucuya durma sinyali gönder
+            server.stop();
 
             // Scheduler'ı düzgünce kapat
             scheduler.shutdown();
@@ -57,16 +89,13 @@ public class Platform1Simulator {
             log.info("Shutdown hook finished.");
         }));
 
-        // 4. Sunucuyu Başlat (Bu metot genellikle bloklar ve program burada bekler)
+        // 4. Sunucuyu Başlat
         try {
             server.start();
         } catch (Exception e) {
-            // TcpServer.start() içindeki hatalar orada loglanmalı,
-            // ama beklenmedik bir hata olursa burada yakalayabiliriz.
             log.error("An unexpected error occurred during server execution: {}", e.getMessage(), e);
         } finally {
-            // Sunucu durduğunda (normal veya hata ile) scheduler'ı kapatmayı garanti edelim
-            // (Shutdown hook çalışmazsa diye ek güvenlik)
+            // Sunucu durduğunda scheduler'ı kapatmayı garanti edelim
             if (!scheduler.isShutdown()) {
                 log.warn("Scheduler was not shut down by hook, shutting down now.");
                 scheduler.shutdownNow();
