@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+
 import java.util.List;
 
 /**
@@ -21,6 +22,7 @@ import java.util.List;
  * @see RateRecord
  * @see RateRepository
  */
+
 @RestController
 @RequestMapping("/api/rates")
 public class RateController {
@@ -37,6 +39,7 @@ public class RateController {
      * 
      * @return Tüm kur kayıtlarının listesi
      */
+
     @GetMapping
     public List<RateRecord> getAllRates() {
         return repository.findAll();

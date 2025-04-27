@@ -3,6 +3,8 @@ package com.findata.kafkaconsumerdb.Service;
 import com.findata.kafkaconsumerdb.Entity.RateRecord;
 import com.findata.kafkaconsumerdb.Repository.RateRecordRepository;
 import com.google.gson.JsonSyntaxException;
+
+import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -75,13 +77,14 @@ public class KafkaRateListener {
     private RateRecord parseMessage(String message) {
         try {
             JsonObject jsonObject = JsonParser.parseString(message).getAsJsonObject();
-            
+
             RateRecord rateRecord = new RateRecord();
-            rateRecord.setName(jsonObject.get("name").getAsString());
-            rateRecord.setBidValue(jsonObject.get("bid").getAsDouble());
-            rateRecord.setAskValue(jsonObject.get("ask").getAsDouble());
-            rateRecord.setTimestamp(Timestamp.from(Instant.now()));
-            
+            rateRecord.setRateName(jsonObject.get("name").getAsString()); // name yerine rateName kullanın.
+            rateRecord.setBid(new BigDecimal(jsonObject.get("bid").getAsDouble())); // bid için BigDecimal dönüşümü
+            rateRecord.setAsk(new BigDecimal(jsonObject.get("ask").getAsDouble())); // ask için BigDecimal dönüşümü
+            rateRecord.setRateUpdatetime(Instant.now()); // Veritabanına kaydedilecek zaman
+            rateRecord.setDbUpdatetime(Instant.now()); // dbUpdatetime da aynı şekilde ayarlanmalı
+
             return rateRecord;
         } catch (JsonSyntaxException jsonSyntaxException) {
             logger.error("JSON ayrıştırma hatası: {}", jsonSyntaxException.getMessage());
@@ -90,10 +93,11 @@ public class KafkaRateListener {
         } catch (Exception e) {
             logger.error("Mesaj ayrıştırma sırasında beklenmeyen hata: {}", e.getMessage());
         }
-        
+
         return null;
     }
-    
+
+
     /**
      * Bir dizeden tarih/zaman değeri ayrıştıran yardımcı metot.
      * <p>
